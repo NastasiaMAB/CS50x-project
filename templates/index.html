@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap" rel="stylesheet">
+        <link href="/static/styles.css" rel="stylesheet">
+        <script src="https://cdn.plot.ly/plotly-3.2.0.min.js" charset="utf-8"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Plot Maker</title>
+    </head>
+    <body>
+        <div class="header">
+            <h1>The plot maker</h1>
+        </div>
+        <div class="container">
+            <h2>Submit your file</h2>
+                <p>Your file must be a csv file (comma separated file). <br>
+                    It must contain 2 or 3 columns. <br>
+                    The name of the columns does not matter. <br>
+                    The first column should contain the sample id, the last column a numerical feature. <br>
+                    If you have a grouping feature, add this in a column in between your sample id and numerical
+                    feature. <br>
+                    Missing values are dropped without warning. <br>
+                    Your data, the figure and the stats summary are NOT saved in the server.
+                </p>
+                <form method="post" action="/" enctype="multipart/form-data" class="dropzone">
+                    <input type="file" name="csvfile" id="csvfile" accept=".csv">
+                    <div id="csv-dropzone">
+                        Drop your csv file here.
+                    </div>
+                </form>
+                <div>
+                <h2>Boxplot</h2>
+                     <div id="fig_html" class="refresh"></div>
+                     <button type="button" id="fig_button" class="hidden">Download figure as pdf</button>
+                     <button type="button" id="fig_button2" class="hidden">Open figure in new tab</button>
+                <h2>Summary statistics of your numerical data</h2>
+                     <div id="stat_html" class="refresh"></div>
+                     <div id="stat_html2" class="refresh"></div> <br>
+                     <button type="button" id="stat_button" class="hidden">Download stats as csv</button>
+                     <button type="button" id="stat_button2" class="hidden">Download stats as csv</button>
+                </div>
+                <img>
+        </div>
+                    <script>
+                        let fetchedData;
+                        function handleClickf1() {const fig2 = JSON.parse(fetchedData.fig_html);
+                                            fig2.layout.font = {};
+                                            fig2.layout.font.size = 40;
+                                            Plotly.toImage(fig2, {format: "png", width: 3200, height: 2400}).then((plot_image2) => {
+                                                const { jsPDF } = window.jspdf;
+                                                const doc2 = new jsPDF({orientation: "landscape", unit: "px", format: [800, 600]});
+                                                var width2 = doc2.internal.pageSize.getWidth();
+                                                var height2 = doc2.internal.pageSize.getHeight();
+                                                doc2.addImage(plot_image2, "png", 0, 0, width2, height2);
+                                                doc2.save("your_plot.pdf");
+                                            })
+                                        }
+
+                        function handleClickf2() {const fig3 = JSON.parse(fetchedData.fig_html);
+                                            fig3.layout.font = {};
+                                            fig3.layout.font.size = 40;
+                                            Plotly.toImage(fig3, {format: "png", width: 3200, height: 2400}).then((plot_image3) => {
+                                                window.open(plot_image3);
+                                            })
+                                        }
+
+                        function handleClicks1() {
+                                            const csvData1 = fetchedData.stat_save;
+                                            const blob = new Blob([csvData1], { type: 'text/csv'});
+                                            const url = URL.createObjectURL(blob);
+                                            var downloadLink =document.createElement('a');
+                                            downloadLink.href = url;
+                                            downloadLink.download = "your-stat.csv";
+                                            downloadLink.click();
+                                        }
+                        function handleClicks2() {const csvData2 = fetchedData.stat_save2;
+                                            const blob = new Blob([csvData2], { type: 'text/csv'});
+                                            const url = URL.createObjectURL(blob);
+                                            var downloadLink =document.createElement('a');
+                                            downloadLink.href = url;
+                                            downloadLink.download = "your-stat2.csv";
+                                            downloadLink.click();
+                                        }
+
+                        const csvDropzone = document.getElementById("csv-dropzone");
+                        csvDropzone.addEventListener("dragover", function (event) {
+                            event.preventDefault();
+                            csvDropzone.classList.add("dragover");
+                        });
+                        csvDropzone.addEventListener("dragleave", function (event) {
+                            event.preventDefault();
+                            csvDropzone.classList.remove("dragover");
+                        });
+                        csvDropzone.addEventListener("drop", function (event) {
+                            event.preventDefault();
+                            csvDropzone.classList.remove("dragover");
+                            const csvFile = event.dataTransfer.files[0];
+                            if (csvFile.type === "text/csv" || csvFile.type === "application/vnd.ms-excel") {
+                                document.getElementById("csv-dropzone").innerHTML=csvFile.name;
+                                const formData = new FormData();
+                                formData.append("csvfile", csvFile);
+                                fetchedData = null;
+                                fetch("/", {
+                                    method: "POST",
+                                    body: formData
+                                })
+                                .then(response => {
+                                if (response.headers.get("content-type").includes("application/json")) {
+                                    return response.json();
+                                    }
+                                })
+                                .then(data => {
+                                    if (data.error) {
+                                        throw new Error(data.error);
+                                    }
+                                fetchedData = data;
+                                if (fetchedData) {
+                                let app_el = document.querySelectorAll(".refresh");
+                                app_el.forEach(el => el.innerHTML = "");
+                                    if (fetchedData.stat_html2 && fetchedData.stat_save2){
+                                        const fig = JSON.parse(fetchedData.fig_html);
+                                        fig.layout.font = {};
+                                        fig.layout.font.size = 15;
+                                        Plotly.newPlot("fig_html", fig.data, fig.layout, {responsive: true});
+                                        document.getElementById("stat_html").innerHTML=fetchedData.stat_html;
+                                        document.getElementById("stat_html2").innerHTML=fetchedData.stat_html2;
+                                        let fig_but = document.querySelectorAll('button');
+                                        fig_but.forEach(button => button.classList.replace("hidden", "visible"));
+                                        document.querySelector('#fig_button').removeEventListener('click', handleClickf1);
+                                        document.querySelector('#fig_button').addEventListener('click', handleClickf1);
+                                        document.querySelector('#fig_button').removeEventListener('click', handleClickf2);
+                                        document.querySelector('#fig_button2').addEventListener('click', handleClickf2);
+                                        document.querySelector('#fig_button').removeEventListener('click', handleClicks1);
+                                        document.querySelector('#stat_button').addEventListener('click', handleClicks1);
+                                        document.querySelector('#fig_button').removeEventListener('click', handleClicks2);
+                                        document.querySelector('#stat_button2').addEventListener('click', handleClicks2)
+                                    } else {
+                                        const fig = JSON.parse(fetchedData.fig_html);
+                                        fig.layout.font = {};
+                                        fig.layout.font.size = 15;
+                                        Plotly.newPlot("fig_html", fig.data, fig.layout, {responsive: true});
+                                        document.getElementById("stat_html").innerHTML=fetchedData.stat_html;
+                                        let fig_but = document.querySelectorAll('button');
+                                        fig_but.forEach(button => button.classList.replace("hidden", "visible"));
+                                        if (document.getElementById("stat_button2").classList.contains("visible")){
+                                            document.getElementById("stat_button2").classList.replace("visible", "hidden")
+                                        }
+                                        document.querySelector('#fig_button').removeEventListener('click', handleClickf1);
+                                        document.querySelector('#fig_button').addEventListener('click', handleClickf1);
+                                        document.querySelector('#fig_button').removeEventListener('click', handleClickf2);
+                                        document.querySelector('#fig_button2').addEventListener('click', handleClickf2);
+                                        document.querySelector('#fig_button').removeEventListener('click', handleClicks1);
+                                        document.querySelector('#stat_button').addEventListener('click', handleClicks1);
+                                    }
+                                }
+                            })
+                                .catch(error => {
+                                alert(error.message);
+                                });
+                            } else {
+                                alert("Please drop a CSV file.");
+                            }
+                        });
+                    </script>
+    </body>
+</html>
